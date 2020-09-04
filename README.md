@@ -64,7 +64,9 @@ allowed-ips:
  - 127.0.0.1
  - 172.0.0/16
 check-dns: false
-# Optional custom resolver for performing check-dns, i.e. your internal name server
+allowed-ptr-domains:
+ - "mynetwork.com"
+# Optional custom resolver for performing DNS and PTR checks, i.e. your internal name server
 check-resolver: 10.0.0.10
 
 # Settings for the acmeproxy SSL certificate (used with this interface)
@@ -84,6 +86,8 @@ ssl.auto.provider: "transip"
 If you want to use client authentication (username/password), use following command: `htpasswd -c /etc/acmeproxy/htpasswd testuser` to create a new htpasswd file with user `testuser`.
 
 If you want to use serverside IP based authentication set `allowed-ips` in the configfile (or set `--allowed-ips` on the commandline). You can use multiple IPs / nets in a CIDR notation, e.g. `127.0.0.1`, `172.16.0.0/16` or `192.168.10.0/24`.
+
+In addition, you can use DNS and rDNS (PTR) checks with `check-dns` and `allowed-ptr-domains`. You can use your trusted custom resolver for these checks with `check-resolver`
 
 # Usage
 
@@ -110,7 +114,8 @@ GLOBAL OPTIONS:
    --allowed-domains value      Set the allowed domain(s) that certificates can be requested for.
    --allowed-ips value          Set the allowed IP(s) that can request certificates (CIDR notation possible, see https://github.com/jpillora/ipfilter)
    --check-dns                  Check that DNS records for the requested names points to the IP address of the client that requests certificate
-   --check-resolver             Resolver for performing DNS checks
+   --allowed-ptr-domains        Set the allowed domains for client reverse DNS records (PTR). PTRs should exist and have corresponding DNS records.
+   --check-resolver             Resolver for performing DNS and PTR checks
    --config-file FILE           Load configuration from FILE (default: "/etc/acmeproxy/config.yml")
    --htpasswd-file FILE         Htpassword file FILE for username/password authentication (default: "/root/.acmeproxy/htpasswd")
    --interface value            Interface (ip or host) to bind for requests

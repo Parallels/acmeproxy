@@ -11,26 +11,28 @@ import (
 )
 
 type Server struct {
-	HttpServer     *http.Server
-	Provider       challenge.Provider
-	HtpasswdFile   string
-	AllowedIPs     []string
-	AllowedDomains []string
-	AccesslogFile  string
-	CheckDNS       bool
-	CheckResolver  *net.Resolver
+	HttpServer        *http.Server
+	Provider          challenge.Provider
+	HtpasswdFile      string
+	AllowedIPs        []string
+	AllowedDomains    []string
+	AccesslogFile     string
+	CheckDNS          bool
+	AllowedPTRDomains []string
+	CheckResolver     *net.Resolver
 }
 
 func NewServer(config *Config) (*Server, error) {
 	return &Server{
-		HttpServer:     config.HttpServer,
-		Provider:       config.Provider,
-		HtpasswdFile:   config.HtpasswdFile,
-		AllowedIPs:     config.AllowedIPs,
-		AllowedDomains: config.AllowedDomains,
-		AccesslogFile:  config.AccesslogFile,
-		CheckDNS:       config.CheckDNS,
-		CheckResolver:  config.CheckResolver,
+		HttpServer:        config.HttpServer,
+		Provider:          config.Provider,
+		HtpasswdFile:      config.HtpasswdFile,
+		AllowedIPs:        config.AllowedIPs,
+		AllowedDomains:    config.AllowedDomains,
+		AccesslogFile:     config.AccesslogFile,
+		CheckDNS:          config.CheckDNS,
+		AllowedPTRDomains: config.AllowedPTRDomains,
+		CheckResolver:     config.CheckResolver,
 	}, nil
 }
 

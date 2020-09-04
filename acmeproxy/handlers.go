@@ -88,6 +88,11 @@ func GetHandler(config *Config) http.Handler {
 		handlerCleanup = FilterHandler(handlerCleanup, ActionCleanup, config)
 	}
 
+	if len(config.AllowedPTRDomains) > 0 {
+		handlerPresent = PTRFilterHandler(handlerPresent, ActionPresent, config)
+		handlerCleanup = PTRFilterHandler(handlerCleanup, ActionCleanup, config)
+	}
+
 	mux.Handle("/", HomeHandler())
 	mux.Handle("/present", handlerPresent)
 	mux.Handle("/cleanup", handlerCleanup)
@@ -120,9 +125,9 @@ func HomeHandler() http.Handler {
 func ActionHandler(action string, config *Config) http.Handler {
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
+		ip := realip.FromRequest(r)
 		alog := log.WithFields(log.Fields{
-			"prefix": action + ": " + realip.FromRequest(r),
+			"prefix": action + ": " + ip,
 		})
 
 		// Check if we're using POST
@@ -177,14 +182,14 @@ func ActionHandler(action string, config *Config) http.Handler {
 				"checkDomain":   checkDomain,
 				"allowedDomain": allowedDomain,
 			}).Debug("Checking allowed domain")
-			if checkDomain == allowedDomain || strings.HasSuffix(strings.SplitAfterN(checkDomain, ".", 2)[1], allowedDomain) {
+			if strings.HasSuffix(checkDomain, allowedDomain) {
 				allowed = true
 				break
 			}
 		}
 
 		if !allowed {
-			http.Error(w, "Requested domain not in allowed-domains", http.StatusInternalServerError)
+			http.Error(w, "Requested domain not in allowed-domains", http.StatusForbidden)
 			alog.WithFields(log.Fields{
 				"domain":          checkDomain,
 				"allowed-domains": config.AllowedDomains,
@@ -194,10 +199,10 @@ func ActionHandler(action string, config *Config) http.Handler {
 		// Check that DNS records for the requested names points to the IP address of the client that requests certificate
 		if config.CheckDNS {
 			var dnsCheck = false
-			hostAddr := realip.FromRequest(r)
 			resolver := config.CheckResolver
 			addrs, err := resolver.LookupHost(context.Background(), checkDomain)
 			if err != nil {
+				http.Error(w, "DNS query error when performing DNS check", http.StatusInternalServerError)
 				alog.WithFields(log.Fields{
 					"domain": checkDomain,
 					"error":  err,
@@ -207,18 +212,16 @@ func ActionHandler(action string, config *Config) http.Handler {
 			for _, checkAddr := range addrs {
 				alog.WithFields(log.Fields{
 					"checkAddr": checkAddr,
-					"hostAddr":  hostAddr,
 				}).Debug("Checking host DNS record")
-				if checkAddr == hostAddr {
+				if checkAddr == ip {
 					dnsCheck = true
 					break
 				}
 			}
 			if !dnsCheck {
-				http.Error(w, "Requested domain not in host DNS records", http.StatusInternalServerError)
+				http.Error(w, "Requested domain not in host DNS records", http.StatusForbidden)
 				alog.WithFields(log.Fields{
 					"domain":   checkDomain,
-					"hostAddr": hostAddr,
 				}).Debug("Requested domain not in host DNS records")
 				return
 			}
@@ -370,6 +373,84 @@ func FilterHandler(h http.Handler, action string, config *Config) http.Handler {
 		if !f.Allowed(ip) {
 			http.Error(w, "Requesting IP not in allowed-ips", http.StatusForbidden)
 			flog.Warning("Access denied")
+			return
+		}
+		//success!
+		h.ServeHTTP(w, r)
+	})
+}
+
+func PTRFilterHandler(h http.Handler, action string, config *Config) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		ip := realip.FromRequest(r)
+		resolver := config.CheckResolver
+		flog := log.WithFields(log.Fields{
+			"prefix": action + ": " + ip,
+			"ip":     ip,
+		})
+		names, err := resolver.LookupAddr(context.Background(), ip)
+		if err != nil {
+			http.Error(w, "DNS query error when performing rDNS (PTR) check", http.StatusInternalServerError)
+			flog.WithFields(log.Fields{
+				"error":  err,
+			}).Debug("DNS query error when performing rDNS (PTR) check")
+			return
+		}
+		if len(names) == 0 {
+			http.Error(w, "PTR not found when performing rDNS (PTR) check", http.StatusForbidden)
+			flog.Debug("PTR not found when performing rDNS (PTR) check")
+			return
+		}
+		// Multiple PTRs are ambigious and meaningless
+		checkPTRDomain :=  strings.TrimRight(names[0], ".")
+
+		var allowed = false
+		for _, allowedPTRDomain := range config.AllowedPTRDomains {
+			flog.WithFields(log.Fields{
+				"checkPTRDomain":   checkPTRDomain,
+				"allowedPTRDomain": allowedPTRDomain,
+			}).Debug("Checking allowed PTR domain")
+			if strings.HasSuffix(checkPTRDomain, allowedPTRDomain) {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			http.Error(w, "Requested domain not in allowed-domains", http.StatusForbidden)
+			flog.WithFields(log.Fields{
+				"ptr-domain":          checkPTRDomain,
+				"allowed-ptr-domains": config.AllowedPTRDomains,
+			}).Debug("Requested domain not in allowed-domains")
+			return
+		}
+
+		// Check that we have right host record accociated with PTR
+		var finePTR = false
+		addrs, err := resolver.LookupHost(context.Background(), checkPTRDomain)
+		if err != nil {
+			http.Error(w, "DNS query error when performing DNS check for host record associated with PTR", http.StatusInternalServerError)
+			flog.WithFields(log.Fields{
+				"checkPTRDomain": checkPTRDomain,
+				"error":          err,
+			}).Debug("DNS query error when performing DNS check for host record associated with PTR")
+			return
+		}
+		for _, checkAddr := range addrs {
+			flog.WithFields(log.Fields{
+				"checkAddr": checkAddr,
+			}).Debug("Checking DNS record for host associated with PTR")
+			if checkAddr == ip {
+				finePTR = true
+				break
+			}
+		}
+		if !finePTR {
+			http.Error(w, "Host ip is not found in DNS records for host associated with PTR record", http.StatusForbidden)
+			flog.WithFields(log.Fields{
+				"ptr-domain":   checkPTRDomain,
+			}).Debug("Host ip is not found in DNS records for host associated with PTR record")
 			return
 		}
 		//success!

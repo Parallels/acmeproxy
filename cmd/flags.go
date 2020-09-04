@@ -45,10 +45,14 @@ func CreateFlags(defaultPath string) []cli.Flag {
 			Name:  "check-dns",
 			Usage: "Check that DNS records for the requested names points to the IP address of the client that requests certificate",
 		}),
+		altsrc.NewStringSliceFlag(cli.StringSliceFlag{
+			Name:  "allowed-ptr-domains",
+			Usage: "Set the allowed domains for client reverse DNS records (PTR). PTRs should exist and have corresponding DNS records.",
+		}),
 		altsrc.NewStringFlag(cli.StringFlag{
 			Name:  "check-resolver",
 			Value: "",
-			Usage: "Resolver for perfoming DNS checks",
+			Usage: "Resolver for perfoming DNS and PTR checks",
 		}),
 		altsrc.NewStringFlag(cli.StringFlag{
 			Name:  "accesslog-file",

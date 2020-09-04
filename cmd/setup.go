@@ -78,6 +78,7 @@ func getConfig(ctx *cli.Context) *acmeproxy.Config {
 	config.HtpasswdFile = ctx.GlobalString("htpasswd-file")
 	config.AccesslogFile = ctx.GlobalString("accesslog-file")
 	config.CheckDNS = ctx.GlobalBool("check-dns")
+	config.AllowedPTRDomains = ctx.GlobalStringSlice("allowed-ptr-domains")
 	config.CheckResolver = newResolver(ctx)
 
 	config.HttpServer = newHttpServer(ctx)
@@ -125,18 +126,25 @@ func setupLogging(ctx *cli.Context) {
 
 func newResolver(ctx *cli.Context) *net.Resolver {
 	if len(ctx.GlobalString("check-resolver")) > 0 {
-		resolverAddr := net.ParseIP(ctx.GlobalString("check-resolver"))
-		if resolverAddr == nil {
+		var addr = ctx.GlobalString("check-resolver")
+		var port = ""
+		if strings.ContainsRune(addr, ':') {
+			addr, port, _ = net.SplitHostPort(addr)
+		}
+		if net.ParseIP(addr) == nil {
 			log.Fatal("Problem setting check-resolver: invalid IP")
 		}
-		resolverAddrStr := net.IP.String(resolverAddr)
+		if len(port) == 0 {
+			port = "53"
+		}
+		addr = addr + ":" + port
 		return &net.Resolver{
 			PreferGo: true, 
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 				d := net.Dialer{
 						Timeout: time.Millisecond * time.Duration(10000),
 					}
-				return d.DialContext(ctx, network, resolverAddrStr + ":53")
+				return d.DialContext(ctx, network, addr)
 			},
 		}
 	} 
