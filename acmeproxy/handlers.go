@@ -9,12 +9,12 @@ import (
 	"time"
 
 	auth "github.com/abbot/go-http-auth"
-	log "github.com/sirupsen/logrus"
+	"github.com/codeskyblue/realip"
 	"github.com/go-acme/lego/v3/challenge"
 	"github.com/go-acme/lego/v3/challenge/dns01"
-	"golang.org/x/net/context"
 	"github.com/orange-cloudfoundry/ipfiltering"
-	"github.com/codeskyblue/realip"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -125,7 +125,6 @@ func ActionHandler(action string, config *Config) http.Handler {
 			"prefix": action + ": " + realip.FromRequest(r),
 		})
 
-
 		// Check if we're using POST
 		if r.Method != http.MethodPost {
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -191,6 +190,38 @@ func ActionHandler(action string, config *Config) http.Handler {
 				"allowed-domains": config.AllowedDomains,
 			}).Debug("Requested domain not in allowed-domains")
 			return
+		}
+		// Check that DNS records for the requested names points to the IP address of the client that requests certificate
+		if config.CheckDNS {
+			var dnsCheck = false
+			hostAddr := realip.FromRequest(r)
+			resolver := config.CheckResolver
+			addrs, err := resolver.LookupHost(context.Background(), checkDomain)
+			if err != nil {
+				alog.WithFields(log.Fields{
+					"domain": checkDomain,
+					"error":  err,
+				}).Debug("DNS query error when performing DNS check")
+				return
+			}
+			for _, checkAddr := range addrs {
+				alog.WithFields(log.Fields{
+					"checkAddr": checkAddr,
+					"hostAddr":  hostAddr,
+				}).Debug("Checking host DNS record")
+				if checkAddr == hostAddr {
+					dnsCheck = true
+					break
+				}
+			}
+			if !dnsCheck {
+				http.Error(w, "Requested domain not in host DNS records", http.StatusInternalServerError)
+				alog.WithFields(log.Fields{
+					"domain":   checkDomain,
+					"hostAddr": hostAddr,
+				}).Debug("Requested domain not in host DNS records")
+				return
+			}
 		}
 
 		// Check if this provider supports the selected mode
@@ -331,7 +362,7 @@ func FilterHandler(h http.Handler, action string, config *Config) http.Handler {
 		ip := realip.FromRequest(r)
 		flog := log.WithFields(log.Fields{
 			"prefix": action + ": " + ip,
-			"ip": ip,
+			"ip":     ip,
 		})
 
 		//ip, _, _ := net.SplitHostPort(r.RemoteAddr)

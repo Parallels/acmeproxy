@@ -41,6 +41,15 @@ func CreateFlags(defaultPath string) []cli.Flag {
 			Name:  "allowed-ips",
 			Usage: "Set the allowed IP(s) that can request certificates (CIDR notation possible, see https://github.com/jpillora/ipfilter)",
 		}),
+		altsrc.NewBoolFlag(cli.BoolFlag{
+			Name:  "check-dns",
+			Usage: "Check that DNS records for the requested names points to the IP address of the client that requests certificate",
+		}),
+		altsrc.NewStringFlag(cli.StringFlag{
+			Name:  "check-resolver",
+			Value: "",
+			Usage: "Resolver for perfoming DNS checks",
+		}),
 		altsrc.NewStringFlag(cli.StringFlag{
 			Name:  "accesslog-file",
 			Value: "",

@@ -1,9 +1,10 @@
 package cmd
 
 import (
+	"context"
 	"crypto/tls"
 	golog "log"
-	//"net"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -76,6 +77,8 @@ func getConfig(ctx *cli.Context) *acmeproxy.Config {
 	config.AllowedDomains = ctx.GlobalStringSlice("allowed-domains")
 	config.HtpasswdFile = ctx.GlobalString("htpasswd-file")
 	config.AccesslogFile = ctx.GlobalString("accesslog-file")
+	config.CheckDNS = ctx.GlobalBool("check-dns")
+	config.CheckResolver = newResolver(ctx)
 
 	config.HttpServer = newHttpServer(ctx)
 	// FIXME This is sort of weird... (using config in a config)
@@ -118,6 +121,26 @@ func setupLogging(ctx *cli.Context) {
 	logger.SetFormatter(tf)
 	golog.SetFlags(0)
 	golog.SetOutput(logger.Writer())
+}
+
+func newResolver(ctx *cli.Context) *net.Resolver {
+	if len(ctx.GlobalString("check-resolver")) > 0 {
+		resolverAddr := net.ParseIP(ctx.GlobalString("check-resolver"))
+		if resolverAddr == nil {
+			log.Fatal("Problem setting check-resolver: invalid IP")
+		}
+		resolverAddrStr := net.IP.String(resolverAddr)
+		return &net.Resolver{
+			PreferGo: true, 
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				d := net.Dialer{
+						Timeout: time.Millisecond * time.Duration(10000),
+					}
+				return d.DialContext(ctx, network, resolverAddrStr + ":53")
+			},
+		}
+	} 
+	return net.DefaultResolver
 }
 
 func newHttpServer(ctx *cli.Context) *http.Server {

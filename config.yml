@@ -20,6 +20,8 @@ allowed-ips:
  - "172.16.0.0/16"
 allowed-domains:
  - "example.com"
+check-dns: true
+# check-resolver: 172.16.0.10
 
 # Settings for the acmeproxy SSL certificate (used with this interface)
 ssl: auto
