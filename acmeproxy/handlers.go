@@ -193,7 +193,7 @@ func ActionHandler(action string, config *Config) http.Handler {
 			alog.WithFields(log.Fields{
 				"domain":          checkDomain,
 				"allowed-domains": config.AllowedDomains,
-			}).Debug("Requested domain not in allowed-domains")
+			}).Warning("Requested domain not in allowed-domains")
 			return
 		}
 		// Check that DNS records for the requested names points to the IP address of the client that requests certificate
@@ -206,7 +206,7 @@ func ActionHandler(action string, config *Config) http.Handler {
 				alog.WithFields(log.Fields{
 					"domain": checkDomain,
 					"error":  err,
-				}).Debug("DNS query error when performing DNS check")
+				}).Error("DNS query error when performing DNS check")
 				return
 			}
 			for _, checkAddr := range addrs {
@@ -222,7 +222,7 @@ func ActionHandler(action string, config *Config) http.Handler {
 				http.Error(w, "Requested domain not in host DNS records", http.StatusForbidden)
 				alog.WithFields(log.Fields{
 					"domain":   checkDomain,
-				}).Debug("Requested domain not in host DNS records")
+				}).Warning("Requested domain not in host DNS records")
 				return
 			}
 		}
@@ -394,12 +394,12 @@ func PTRFilterHandler(h http.Handler, action string, config *Config) http.Handle
 			http.Error(w, "DNS query error when performing rDNS (PTR) check", http.StatusInternalServerError)
 			flog.WithFields(log.Fields{
 				"error":  err,
-			}).Debug("DNS query error when performing rDNS (PTR) check")
+			}).Error("DNS query error when performing rDNS (PTR) check")
 			return
 		}
 		if len(names) == 0 {
 			http.Error(w, "PTR not found when performing rDNS (PTR) check", http.StatusForbidden)
-			flog.Debug("PTR not found when performing rDNS (PTR) check")
+			flog.Warning("PTR not found when performing rDNS (PTR) check")
 			return
 		}
 		// Multiple PTRs are ambigious and meaningless
@@ -434,7 +434,7 @@ func PTRFilterHandler(h http.Handler, action string, config *Config) http.Handle
 			flog.WithFields(log.Fields{
 				"checkPTRDomain": checkPTRDomain,
 				"error":          err,
-			}).Debug("DNS query error when performing DNS check for host record associated with PTR")
+			}).Error("DNS query error when performing DNS check for host record associated with PTR")
 			return
 		}
 		for _, checkAddr := range addrs {
@@ -450,7 +450,7 @@ func PTRFilterHandler(h http.Handler, action string, config *Config) http.Handle
 			http.Error(w, "Host ip is not found in DNS records for host associated with PTR record", http.StatusForbidden)
 			flog.WithFields(log.Fields{
 				"ptr-domain":   checkPTRDomain,
-			}).Debug("Host ip is not found in DNS records for host associated with PTR record")
+			}).Warning("Host ip is not found in DNS records for host associated with PTR record")
 			return
 		}
 		//success!
