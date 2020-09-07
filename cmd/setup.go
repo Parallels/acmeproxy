@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mdbraber/acmeproxy/acmeproxy"
-	aplog "github.com/mdbraber/acmeproxy/log"
+	"github.com/Parallels/acmeproxy/acmeproxy"
+	aplog "github.com/Parallels/acmeproxy/log"
 	"github.com/mholt/certmagic"
 	log "github.com/sirupsen/logrus"
 	"github.com/go-acme/lego/v3/certcrypto"
